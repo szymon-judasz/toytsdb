@@ -3,6 +3,7 @@ project(MyProject)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
+add_subdirectory(tools)
 
 # Add executable from main.cpp
 add_executable(${PROJECT_NAME} main.cpp)

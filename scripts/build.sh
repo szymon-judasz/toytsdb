@@ -1,16 +1,15 @@
 #!/bin/bash
-
-# Build script for the project
-# This script will compile the project and place output in the build directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "Cleaning..."
 
-mkdir -p build
-rm -rf build/*
+mkdir -p "$PROJECT_ROOT/build"
+rm -rf "$PROJECT_ROOT/build"/*
 
 echo "Building project..."
 
-cmake -S .. -B build
-cmake --build build -j
+cmake -S "$PROJECT_ROOT" -B "$PROJECT_ROOT/build"
+cmake --build "$PROJECT_ROOT/build" -j
 
 echo "Done."
