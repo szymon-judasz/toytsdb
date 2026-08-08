@@ -6,16 +6,12 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-/*
-TODO list:
-1. memory leak in accept/send/recv. Memory allocation but no deletion.
-2. Move the io_uring_user_data to shared buffers
-*/
+char recv_buffer[32*1024] = {0};
 
 unsigned uring_entries = 1024;
 unsigned uring_flags = IORING_SETUP_SINGLE_ISSUER;
 
-uint16_t server_port = 8080;
+uint16_t server_port = 8088;
 
 struct io_uring_user_data {
   int fd;
@@ -23,17 +19,20 @@ struct io_uring_user_data {
 };
 
 void io_accept(io_uring *ring, int server_fd) {
-  io_uring_user_data *userdata = new io_uring_user_data();
+  io_uring_user_data *userdata = new io_uring_user_data(); // todo leak
   userdata->operation_type = io_uring_user_data::ACCEPT;
   io_uring_sqe *sqe = io_uring_get_sqe(ring);
   io_uring_prep_accept(sqe, server_fd, NULL, NULL, 0);
-  io_uring_sqe_set_data(sqe, userdata); // use to pass data to check cqe
+  io_uring_sqe_set_data(sqe, userdata);
   io_uring_submit(ring);
 }
 
 void recv(io_uring *ring, int client_fd, char *buffer, size_t buffer_size) {
+  io_uring_user_data *userdata = new io_uring_user_data();  // todo leak
+  userdata->operation_type = io_uring_user_data::RECV;
   io_uring_sqe *sqe = io_uring_get_sqe(ring);
   io_uring_prep_recv(sqe, client_fd, buffer, buffer_size, 0);
+  io_uring_sqe_set_data(sqe, userdata);
   io_uring_submit(ring);
 }
 
@@ -87,27 +86,30 @@ int main() {
 
   while (true) {
     io_uring_wait_cqe(&ring, &cqe);
-    io_uring_user_data *cqe_data =
-        (io_uring_user_data *)io_uring_cqe_get_data(cqe);
+    io_uring_user_data *cqe_data = (io_uring_user_data *)io_uring_cqe_get_data(cqe);
 
     switch (cqe_data->operation_type) {
     case io_uring_user_data::ACCEPT:
+      std::cout << "io_uring_user_data::ACCEPT\n";
       client_fd = cqe->res;
       if (client_fd < 0) {
         continue;
       }
-      recv(&ring, client_fd, 0, 0);
+      recv(&ring, client_fd, &recv_buffer[0], 32*1024);
       break;
 
     case io_uring_user_data::RECV:
       // case recv, get data, stg, send
+      std::cout << "io_uring_user_data::RECV\n";
       break;
 
     case io_uring_user_data::SEND:
+      std::cout << "io_uring_user_data::SEND\n";
       // case send, get send size from cqe res, advance pointers and try again
       // sending, if all sent -> spawn receive sqe
       break;
     default:
+      std::cout << "default\n";
       break;
     }
 

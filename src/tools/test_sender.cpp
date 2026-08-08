@@ -4,16 +4,29 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <chrono>
+#include <thread>
 
 #include "../core/protocol.hpp"
 
-alignas(64) char send_buffer[64*1024] = {0};
+alignas(64) char send_buffer[32*1024] = {0};
 
-void prepare_message() {
-  rtdb::header* header = reinterpret_cast<rtdb::header*>(&send_buffer);
-  header->size = 60 * 1024;
-  header->type = rtdb::message_type::SEND_DATA;
+rtdb::core::header* prepare_message() {
+  std::cout << "building header";
+  rtdb::core::header* header = reinterpret_cast<rtdb::core::header*>(&send_buffer);
+  header->size = 32 * 1024;
+  header->type = rtdb::core::message_type::SEND_DATA;
+  std::cout << "building senddata";
 
+  rtdb::core::send_data_request* send_data_request = reinterpret_cast<rtdb::core::send_data_request*>(&send_buffer + sizeof(rtdb::core::header));
+  
+  auto now = std::chrono::system_clock::now();
+  auto duration = now.time_since_epoch();
+  auto timestamp_ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+  
+  send_data_request->timestamp = timestamp_ms;
+  send_data_request->stream_id = 2;
+  return header;
 }
 
 int main() {
@@ -23,24 +36,26 @@ int main() {
     std::cerr << "Failed to create socket" << std::endl;
     return 1;
   }
+  std::cout << "Socker created\n";
 
   // Set up server address
   struct sockaddr_in server_addr;
   server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons(8080);
+  server_addr.sin_port = htons(8088);
   server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
   // Connect to server
-  if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+  while (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
     std::cerr << "Failed to connect to server" << std::endl;
-    close(sock);
-    return 1;
+    std::this_thread::sleep_for(std::chrono::seconds(1));
   }
+  std::cout << "connected\n";
 
   // Send data
-  std::string message = "Hello Server";
-  send(sock, message.c_str(), message.length(), 0);
-  std::cout << "Sent: " << message << std::endl;
+  rtdb::core::header* header = prepare_message();
+  std::cout << "sending...\n";
+  send(sock, header, header->size, 0);
+  std::cout << "Sent message"; 
 
   // Receive response
   char buffer[1024] = {0};

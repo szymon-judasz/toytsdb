@@ -9,7 +9,7 @@ rm -rf "$PROJECT_ROOT/build"/*
 
 echo "Building project..."
 
-cmake -S "$PROJECT_ROOT" -B "$PROJECT_ROOT/build"
+cmake -S "$PROJECT_ROOT" -B "$PROJECT_ROOT/build" -DCMAKE_BUILD_TYPE=Debug
 cmake --build "$PROJECT_ROOT/build" -j
 
 echo "Done."
